@@ -21,6 +21,30 @@ function Get-PQCTask {
     Get-ScheduledTask -TaskName $PQCTaskName -ErrorAction SilentlyContinue
 }
 
+# בלי הרשאות מנהל אי אפשר לקרוא משימה שרצה תחת SYSTEM, אבל אפשר בכל זאת
+# לדעת אם היא קיימת: ממשק ה-COM של מתזמן המשימות מחזיר שתי שגיאות שונות —
+#   0x80070005 "אין הרשאה"  => המשימה קיימת, רק חסומה לקריאה
+#   0x80070002 "לא נמצא"    => המשימה באמת אינה קיימת
+# (אומת 24/11/2026. אין להשתמש כאן ב-Test-Path על מפתח הרישום של
+#  TaskCache\Tree — הוא מחזיר True לכל שם, גם מומצא.)
+function Test-PQCTaskExistsLimited {
+    $svc = $null
+    try {
+        $svc = New-Object -ComObject Schedule.Service
+        $svc.Connect()
+        $null = $svc.GetFolder('\').GetTask($PQCTaskName)
+        return $true
+    } catch {
+        $ex = $_.Exception
+        while ($ex.InnerException) { $ex = $ex.InnerException }
+        $hr = 0
+        try { $hr = [int]$ex.HResult } catch {}
+        return ($hr -eq -2147024891)   # 0x80070005
+    } finally {
+        if ($svc) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($svc) }
+    }
+}
+
 function Install-PQCTask {
     if (-not (Test-PQCElevated)) { throw 'התקנת המשימה דורשת הרשאות מנהל.' }
     if (-not (Test-Path -LiteralPath $scriptPath)) { throw "לא נמצא הקובץ $scriptPath" }
@@ -67,10 +91,20 @@ function Uninstall-PQCTask {
     Get-PQCTaskStatus
 }
 
+# זהירות: בלי הרשאות מנהל, Get-ScheduledTask על משימה שרצה תחת SYSTEM
+# מחזיר "לא נמצא" ו-Get-ScheduledTaskInfo זורק Access denied — גם כשהמשימה
+# מותקנת ורצה (אומת 24/11/2026). לכן יש נפילה חזרה למפתח הרישום של מתזמן
+# המשימות, שנקרא גם למשתמש רגיל. בלעדיו הממשק היה מכריז "לא מותקנת" בשקר.
 function Get-PQCTaskStatus {
     $t = Get-PQCTask
     if (-not $t) {
-        return [pscustomobject]@{ installed = $false; state = 'לא מותקנת'; lastRun = $null; nextRun = $null; lastResult = $null; interval = $null }
+        if (Test-PQCTaskExistsLimited) {
+            return [pscustomobject]@{
+                installed = $true; state = 'מותקנת'; lastRun = $null; nextRun = $null
+                lastResult = $null; interval = $null; limited = $true
+            }
+        }
+        return [pscustomobject]@{ installed = $false; state = 'לא מותקנת'; lastRun = $null; nextRun = $null; lastResult = $null; interval = $null; limited = $false }
     }
     $info = Get-ScheduledTaskInfo -TaskName $PQCTaskName -ErrorAction SilentlyContinue
     $interval = $null
@@ -85,6 +119,7 @@ function Get-PQCTaskStatus {
         nextRun    = $info.NextRunTime
         lastResult = $info.LastTaskResult
         interval   = $interval
+        limited    = $false
     }
 }
 

@@ -84,6 +84,17 @@ try {
         $logOk = ($txt -match 'נמחקה עבודה תקועה')
     }
     Check 'היומן תיעד את המחיקה בעברית' $logOk
+
+    # זיהוי המשימה המתוזמנת חייב לא לזהות כזב. גרסה קודמת בדקה מפתח
+    # רישום ש-Test-Path מחזיר עליו True לכל שם, כולל מומצא — ואז הממשק
+    # היה מכריז "מותקנת" גם כשלא. כאן מוודאים ששם מומצא מחזיר False.
+    # הסדר חשוב: install-task טוען את common שמאפס את $PQCTaskName,
+    # ולכן דורסים את השם רק אחרי הטעינה.
+    . (Join-Path $src 'install-task.ps1') -Action status | Out-Null
+    $PQCTaskName = 'PQC-NoSuchTask-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+    $fakeFound = Test-PQCTaskExistsLimited
+    Check 'זיהוי המשימה לא מזהה כזב על שם מומצא' (-not $fakeFound)
+    $PQCTaskName = 'PrintQueueCleaner'
 }
 finally {
     if ($jobId) {

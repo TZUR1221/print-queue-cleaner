@@ -215,10 +215,13 @@ function Update-StatusLine {
     try {
         $t = & (Join-Path $PSScriptRoot 'install-task.ps1') -Action status
         if ($t.installed) {
-            $every = if ($t.interval) { "כל $($t.interval) דקות" } else { 'בתזמון קבוע' }
-            $parts += "הרצה אוטומטית: מותקנת ($every, מצב: $($t.state))"
-            if ($t.lastRun -and $t.lastRun.Year -gt 1999) {
-                $parts += "ריצה אחרונה: $(Get-Date $t.lastRun -Format 'dd/MM/yyyy HH:mm:ss')"
+            if ($t.limited) {
+                # מצב מדויק דורש הרשאות מנהל; במקום לנחש, מציגים את ההוכחה
+                # המעשית — מתי המשימה עצמה כתבה לקובץ המצב.
+                $parts += 'הרצה אוטומטית: מותקנת'
+            } else {
+                $every = if ($t.interval) { "כל $($t.interval) דקות" } else { 'בתזמון קבוע' }
+                $parts += "הרצה אוטומטית: מותקנת ($every, מצב: $($t.state))"
             }
         } else {
             $parts += 'הרצה אוטומטית: לא מותקנת — לחץ "הפעל כל 2 דקות"'
@@ -227,8 +230,16 @@ function Update-StatusLine {
 
     $r = Get-PQCRunStatus
     if ($r) {
-        $when = try { Get-Date ([datetime]$r.time) -Format 'HH:mm:ss' } catch { '' }
-        $parts += "סריקה אחרונה ב-$when : $($r.scanned) בתור, נמחקו $($r.deleted)"
+        try {
+            $ago = [int]((Get-Date) - [datetime]$r.time).TotalMinutes
+            $when = Get-Date ([datetime]$r.time) -Format 'HH:mm:ss'
+            $agoText = if ($ago -le 0) { 'ממש עכשיו' } elseif ($ago -eq 1) { 'לפני דקה' } else { "לפני $ago דקות" }
+            $parts += "סריקה אחרונה $agoText ($when): $($r.scanned) בתור, נמחקו $($r.deleted)"
+        } catch {
+            $parts += "סריקה אחרונה: $($r.scanned) בתור, נמחקו $($r.deleted)"
+        }
+    } else {
+        $parts += 'עדיין לא בוצעה אף סריקה'
     }
     if (-not (Test-PQCElevated)) { $parts += 'שים לב: החלון אינו בהרשאות מנהל — התקנה/הסרה של המשימה לא תעבוד.' }
 
