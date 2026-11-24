@@ -1,0 +1,4 @@
+﻿data/state.json
+data/last-run.json
+data/logs/
+*.tmp
