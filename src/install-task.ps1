@@ -45,9 +45,33 @@ function Test-PQCTaskExistsLimited {
     }
 }
 
+# שתי הגרסאות — זו וגרסת ה-exe — חולקות את שם המשימה PrintQueueCleaner.
+# אם ה-exe כבר מותקן, התקנה מכאן הייתה מחליפה אותו בשקט ומשאירה את
+# ההגדרות והיומן שלו מאחור. לכן עוצרים ומסבירים.
+function Assert-PQCNotExeInstallation {
+    try {
+        $t = Get-ScheduledTask -TaskName $PQCTaskName -ErrorAction SilentlyContinue
+        if (-not $t) { return }
+        foreach ($a in $t.Actions) {
+            # schtasks שומר את הנתיב עם מרכאות כשיש בו רווחים, ולכן
+            # Execute חוזר כ-"C:\...\x.exe" ולא כ-C:\...\x.exe.
+            # בלי החיתוך הזה כל התאמה שמסתיימת ב-exe$ נכשלת בשקט.
+            $exe = ([string]$a.Execute).Trim().Trim('"').Trim()
+            if ($exe -and $exe -match '\.exe$' -and $exe -notmatch '(^|\\)powershell\.exe$') {
+                throw ("על המחשב הזה מותקנת גרסת ה-exe של המערכת:`n  $exe`n`n" +
+                       "התקנה מכאן הייתה מחליפה אותה ומשאירה את ההגדרות והיומן שלה מאחור. " +
+                       "כדי לנהל את המערכת, יש לפתוח את ה-exe הזה. " +
+                       "כדי לחזור דווקא לגרסת הסקריפטים — להסיר קודם את ההרצה האוטומטית מתוך ה-exe.")
+            }
+        }
+    } catch [System.Management.Automation.RuntimeException] { throw }
+    catch { }   # לא הצלחנו לקרוא את המשימה — לא חוסמים בגלל זה
+}
+
 function Install-PQCTask {
     if (-not (Test-PQCElevated)) { throw 'התקנת המשימה דורשת הרשאות מנהל.' }
     if (-not (Test-Path -LiteralPath $scriptPath)) { throw "לא נמצא הקובץ $scriptPath" }
+    Assert-PQCNotExeInstallation
 
     $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $psArgs
     $trg = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(1)

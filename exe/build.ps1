@@ -8,7 +8,11 @@
 
 param(
     [switch]$SkipTests,
-    [string]$OutDir
+    [string]$OutDir,
+    # מעתיק את ה-exe שנבנה למקום ההתקנה הקבוע. הכרחי אחרי כל שינוי בקוד,
+    # כי המשימה המתוזמנת מצביעה לשם ולא לתיקיית הבנייה.
+    [switch]$Deploy,
+    [string]$InstallDir = 'C:\PrintQueueCleaner'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -94,3 +98,27 @@ Invoke-Exe 'בודק שהחלון נבנה...' @('--formcheck')
 
 Write-Host ''
 Write-Host 'הכל עבר.' -ForegroundColor Green
+
+if ($Deploy) {
+    Write-Host ''
+    Write-Host "פורס אל $InstallDir ..." -ForegroundColor Cyan
+    if (-not (Test-Path -LiteralPath $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+    $target = Join-Path $InstallDir 'PrintQueueCleaner.exe'
+
+    # המשימה המתוזמנת מריצה את הקובץ הזה כל 2 דקות; אם היא בדיוק באמצע
+    # ריצה הקובץ נעול. מנסים כמה פעמים במקום להיכשל.
+    $copied = $false
+    for ($i = 1; $i -le 10; $i++) {
+        try { Copy-Item -LiteralPath $exePath -Destination $target -Force -ErrorAction Stop
+              $copied = $true; break }
+        catch { Start-Sleep -Seconds 3 }
+    }
+    if (-not $copied) { throw "לא ניתן להחליף את $target — הקובץ נעול. לעצור את המשימה ולנסות שוב." }
+
+    Copy-Item -LiteralPath (Join-Path $here 'קרא-אותי.txt') -Destination $InstallDir -Force -ErrorAction SilentlyContinue
+
+    $t = Get-Item -LiteralPath $target
+    Write-Host ("נפרס: {0}  ({1} ק""ב)" -f $t.FullName, [math]::Round($t.Length/1KB,1)) -ForegroundColor Green
+}
