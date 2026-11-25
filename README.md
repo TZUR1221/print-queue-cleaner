@@ -90,3 +90,22 @@ powershell -ExecutionPolicy Bypass -File src\settings-ui.ps1 -SelfTest  # בני
 - **25/11/2026** — **המחשב עבר מגרסת הסקריפטים ל-exe.** ה-exe נפרס ל-`C:\PrintQueueCleaner`, ההגדרות החיות הועברו מ-`data\settings.json` ל-`%ProgramData%\PrintQueueCleaner\settings.ini`, היסטוריית היומן הועתקה עם שורת הפרדה, והמשימה המתוזמנת (אותו שם) הופנתה ל-exe. קיצור הדרך בשולחן העבודה הופנה אליו. **אומת:** המשימה רצה תחת SYSTEM ב-09:39:01 עם קוד 0.
   נוסף `-Deploy` ל-`build.ps1` (מעתיק למקום ההתקנה, עם נסיונות חוזרים כי המשימה עלולה לנעול את הקובץ באמצע ריצה) — **אחרי כל שינוי בקוד צריך להריץ עם `-Deploy`**, אחרת המשימה תמשיך להריץ את הבנייה הישנה.
   נוסף שומר ב-`src\install-task.ps1`: שתי הגרסאות חולקות את שם המשימה, ולכן התקנה מגרסת הסקריפטים כשה-exe מותקן נעצרת ומסבירה. ⚠️ **הגרסה הראשונה של השומר לא עבדה** — `schtasks` שומר את `Execute` **עם מרכאות** (`"C:\...\x.exe"`), ולכן `-match '\.exe$'` נכשל בשקט והשומר נתן להתקנה לעבור. הבדיקה של השומר היא שגילתה זאת, והיא גם זו שהחזירה בטעות את המשימה לסקריפט — הוחזר ונבדק שוב.
+
+---
+
+## English summary
+
+**Print Queue Cleaner** — a Windows tool that checks every print queue every 2 minutes and deletes jobs that are *stuck*, without touching jobs that are actually printing.
+
+It tells the difference by remembering each job's page counter between scans: if the counter advanced, the job is making progress and its idle clock resets. A 500-page job that takes half an hour is never killed, as long as it keeps printing. Jobs waiting for paper or paused on purpose are left alone by default.
+
+Two implementations of the same product:
+
+- **`exe/`** — a single self-contained C# application (~92 KB). No installer, no dependencies beyond the .NET Framework that ships with Windows. Build it with `exe\build.ps1`, which uses the `csc.exe` already present on every Windows machine — no Visual Studio, no dotnet SDK. 23 tests ride inside the binary (`PrintQueueCleaner.exe --selftest`), including a live one that creates a real stuck print job and verifies it gets deleted — without printing any paper.
+- **`src/`** — the original PowerShell implementation, kept as reference. 24 tests under `tests\`.
+
+Deletion goes through `winspool.drv` (`SetJob` with `JOB_CONTROL_DELETE`) rather than the built-in cmdlets, because `Remove-PrintJob` returns *Access denied* without administrator rights — even for the user's own job.
+
+The UI, the logs and all documentation are in Hebrew (right-to-left). Settings live in `%ProgramData%\PrintQueueCleaner\settings.ini`; every rule is a toggle there, nothing is hard-coded.
+
+Licensed under the MIT License.
