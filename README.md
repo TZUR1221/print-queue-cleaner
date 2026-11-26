@@ -109,3 +109,6 @@ Deletion goes through `winspool.drv` (`SetJob` with `JOB_CONTROL_DELETE`) rather
 The UI, the logs and all documentation are in Hebrew (right-to-left). Settings live in `%ProgramData%\PrintQueueCleaner\settings.ini`; every rule is a toggle there, nothing is hard-coded.
 
 Licensed under the MIT License.
+- **26/11/2026** — נוסף המתג **"לא לגעת בעבודה שכבר התחילה לעבור למדפסת"** (`skipJobsAtPrinter`, כבוי כברירת מחדל לפי כלל ה-opt-in). ברקע: תור ההדפסה שהתוכנה רואה יושב ב-spooler של Windows; עבודה שהועברה במלואה למכונה כבר אינה בתור ואי אפשר לבטלה מהמחשב כלל. המתג נוגע רק למקרה הביניים — עבודה שנתוניה באמצע ההעברה (`JOB_STATUS_PRINTING`). הוא ממוקם **אחרי** בדיקת `Deleting`, כדי שלא יגן על העבודה שחוסמת את כל התור.
+  נוסף גם מנגנון השלמה: קובץ הגדרות שחסר בו מפתח מגרסה חדשה נכתב מחדש אוטומטית, אחרת המשתמש לא רואה את ההגדרה החדשה בקובץ כלל.
+  27 בדיקות עוברות. **גרסת ה-PowerShell שב-`src\` לא עודכנה** — היא קפואה כקוד ייחוס, וה-exe הוא המוצר.

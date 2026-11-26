@@ -162,7 +162,28 @@ namespace PrintQueueCleaner
             j = Job(JobStatus.Printing | JobStatus.Retained, 55, Now.AddMinutes(-40));
             Expect("שמורה אך עדיין מדפיסה ומתקדמת — נשארת", j, Mem(j, 40, 40, 20, 0), false, null);
 
-            // 16. איפוס ספולר נחסם כשעבודה אחרת מדפיסה בפועל
+            // 16. המתג "לא לגעת בעבודה שכבר עוברת למדפסת" — כבוי כברירת מחדל,
+            //     ולכן עבודה תקועה במצב Printing עדיין נמחקת
+            j = Job(JobStatus.Printing, 3, Now);
+            Expect("עבודה תקועה שעוברת למדפסת — נמחקת כשהמתג כבוי (ברירת מחדל)",
+                   j, Mem(j, 30, 30, 3, 0), true, null);
+
+            // 17. אותה עבודה בדיוק, כשהמתג דלוק — לא נוגעים
+            var s17 = Def(); s17.SkipJobsAtPrinter = true;
+            Expect("אותה עבודה כשהמתג דלוק — לא נוגעים",
+                   j, Mem(j, 30, 30, 3, 0), false, s17);
+
+            // 18. המתג אינו מגן על עבודה שעדיין לא התחילה לעבור (ממתינה בתור)
+            j = Job(JobStatus.None, 0, Now);
+            Expect("עבודה שעוד לא נשלחה למדפסת — נמחקת גם כשהמתג דלוק",
+                   j, Mem(j, 30, 30, 0, 0), true, s17);
+
+            // 19. והוא גם אינו מגן על עבודה שנתקעה ב"מבטל" — זו שחוסמת את התור
+            j = Job(JobStatus.Printing | JobStatus.Deleting, 0, Now.AddMinutes(-10));
+            Expect("תקועה במחיקה — נמחקת גם כשהמתג דלוק",
+                   j, Mem(j, 10, 10, 0, 0), true, s17);
+
+            // 20. איפוס ספולר נחסם כשעבודה אחרת מדפיסה בפועל
             var stuck = Job(JobStatus.Deleting, 0, Now.AddMinutes(-10));
             stuck.JobId = 7;
             var moving = Job(JobStatus.Printing, 30, Now.AddMinutes(-5));
@@ -173,22 +194,22 @@ namespace PrintQueueCleaner
             Check("איפוס ספולר נחסם כשיש הדפסה פעילה אחרת",
                   !Engine.SpoolerResetAllowed(r16.Decisions, failed), "");
 
-            // 17. איפוס ספולר מותר כשאין שום דבר שזז
+            // 21. איפוס ספולר מותר כשאין שום דבר שזז
             var r17 = Engine.Decide(new List<PrintJobInfo> { stuck }, Mem(stuck, 10, 10, 0, 0), Now, Def());
             Check("איפוס ספולר מותר כשאין הדפסה פעילה",
                   Engine.SpoolerResetAllowed(r17.Decisions, failed), "");
 
-            // 18. שעון ההתקדמות מתאפס כשנדפס עוד עמוד
+            // 22. שעון ההתקדמות מתאפס כשנדפס עוד עמוד
             j = Job(JobStatus.Printing, 99, Now);
             var r18 = Engine.Decide(new List<PrintJobInfo> { j }, Mem(j, 20, 20, 50, 0), Now, Def());
             Check("שעון ההתקדמות מתאפס כשנדפס עוד עמוד",
                   r18.NewState[j.Key].LastProgressAt == Now, "");
 
-            // 19. עבודה שנעלמה מהתור נעלמת גם מהמצב (לא מצטבר לנצח)
+            // 23. עבודה שנעלמה מהתור נעלמת גם מהמצב (לא מצטבר לנצח)
             var r19 = Engine.Decide(new List<PrintJobInfo>(), Mem(j, 10, 10, 0, 0), Now, Def());
             Check("מצב של עבודה שנעלמה מהתור נמחק", r19.NewState.Count == 0, "");
 
-            // 20. זיהוי המשימה לא מזהה כזב על שם מומצא
+            // 24. זיהוי המשימה לא מזהה כזב על שם מומצא
             string realName = TaskInstaller.TaskName;
             TaskInstaller.TaskName = "PQC-NoSuchTask-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             bool fakeFound = TaskInstaller.GetState().Installed;

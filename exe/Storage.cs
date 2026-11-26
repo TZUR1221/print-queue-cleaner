@@ -25,6 +25,10 @@ namespace PrintQueueCleaner
         public bool DeleteOnError = true;
         public bool DeletePaperOut = false;
         public bool DeletePaused = false;
+        // עבודה שכבר התחילה לעבור למדפסת (מצב Printing) — חלק ממנה כבר
+        // בזיכרון המכונה. כבוי כברירת מחדל, כי זה גם המצב של רוב
+        // העבודות התקועות באמת.
+        public bool SkipJobsAtPrinter = false;
         public bool DeletePrintedLeftovers = true;
         public int PrintedLeftoverMinutes = 10;
         public bool SpoolerResetEnabled = true;
@@ -83,6 +87,10 @@ namespace PrintQueueCleaner
             var s = new Settings();
             if (!File.Exists(SettingsPath)) { SaveSettings(s); return s; }
 
+            // מפתחות שנמצאו בקובץ. אם גרסה חדשה הוסיפה הגדרה שאינה שם,
+            // הקובץ נכתב מחדש בסוף — אחרת מי שפותח אותו לא רואה אותה בכלל.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             try
             {
                 foreach (string raw in File.ReadAllLines(SettingsPath, Encoding.UTF8))
@@ -93,6 +101,7 @@ namespace PrintQueueCleaner
                     if (eq <= 0) continue;
                     string k = line.Substring(0, eq).Trim();
                     string v = line.Substring(eq + 1).Trim();
+                    seen.Add(k);
 
                     switch (k)
                     {
@@ -109,6 +118,7 @@ namespace PrintQueueCleaner
                         case "deleteOnError": s.DeleteOnError = ParseBool(v, s.DeleteOnError); break;
                         case "deletePaperOut": s.DeletePaperOut = ParseBool(v, s.DeletePaperOut); break;
                         case "deletePaused": s.DeletePaused = ParseBool(v, s.DeletePaused); break;
+                        case "skipJobsAtPrinter": s.SkipJobsAtPrinter = ParseBool(v, s.SkipJobsAtPrinter); break;
                         case "deletePrintedLeftovers": s.DeletePrintedLeftovers = ParseBool(v, s.DeletePrintedLeftovers); break;
                         case "printedLeftoverMinutes": s.PrintedLeftoverMinutes = ParseInt(v, s.PrintedLeftoverMinutes); break;
                         case "spoolerResetEnabled": s.SpoolerResetEnabled = ParseBool(v, s.SpoolerResetEnabled); break;
@@ -122,8 +132,20 @@ namespace PrintQueueCleaner
                 Log("קובץ ההגדרות פגום — חוזר לברירות המחדל. " + ex.Message, "שגיאה");
                 return new Settings();
             }
+
+            foreach (string k in KnownKeys)
+            {
+                if (!seen.Contains(k)) { SaveSettings(s); break; }
+            }
             return s;
         }
+
+        private static readonly string[] KnownKeys = {
+            "enabled", "dryRun", "printers", "minutesNoProgress", "errorGraceMinutes",
+            "deleteOnError", "deletePaperOut", "deletePaused", "skipJobsAtPrinter",
+            "deletePrintedLeftovers", "printedLeftoverMinutes",
+            "spoolerResetEnabled", "spoolerResetAfterAttempts", "logKeepDays"
+        };
 
         public static void SaveSettings(Settings s)
         {
@@ -146,6 +168,8 @@ namespace PrintQueueCleaner
             sb.AppendLine("deletePaperOut=" + B(s.DeletePaperOut));
             sb.AppendLine("# עבודה שמישהו השהה בכוונה — כברירת מחדל לא נוגעים");
             sb.AppendLine("deletePaused=" + B(s.DeletePaused));
+            sb.AppendLine("# עבודה שכבר התחילה לעבור למדפסת — 1 = לא לגעת בה אף פעם");
+            sb.AppendLine("skipJobsAtPrinter=" + B(s.SkipJobsAtPrinter));
             sb.AppendLine("# עבודות שכבר הודפסו ונשארו תקועות בתור");
             sb.AppendLine("deletePrintedLeftovers=" + B(s.DeletePrintedLeftovers));
             sb.AppendLine("printedLeftoverMinutes=" + s.PrintedLeftoverMinutes);

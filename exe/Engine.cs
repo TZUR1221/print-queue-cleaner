@@ -99,6 +99,14 @@ namespace PrintQueueCleaner
                     }
                     else reason = "בתהליך מחיקה — ממתין";
                 }
+                else if (s.SkipJobsAtPrinter && Has(job, JobStatus.Printing))
+                {
+                    // מצב Printing פירושו שהנתונים כבר זורמים אל המכונה, ולכן
+                    // חלק מהעבודה כבר בזיכרון שלה. מחיקה כאן משאירה את המכונה
+                    // עם חצי עבודה. בא אחרי הבדיקה של Deleting, כי עבודה שכבר
+                    // ביקשו לבטל היא בדיוק זו שחוסמת את התור.
+                    reason = "כבר עוברת למדפסת — לא נוגעים (לפי ההגדרה)";
+                }
                 else if (Has(job, JobStatus.Error) || Has(job, JobStatus.Offline) || Has(job, JobStatus.BlockedDevQ))
                 {
                     if (!s.DeleteOnError) reason = "שגיאה — מחיקה כבויה בהגדרות";

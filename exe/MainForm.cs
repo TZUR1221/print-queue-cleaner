@@ -18,6 +18,7 @@ namespace PrintQueueCleaner
         private List<string> _allPrinters;
         private NumericUpDown _numNoProgress, _numErrGrace, _numPrinted, _numSpooler;
         private CheckBox _chkError, _chkPaperOut, _chkPaused, _chkPrinted, _chkSpooler, _chkEnabled, _chkDryRun;
+        private CheckBox _chkAtPrinter;
         private Label _lblStatus;
         private TextBox _txtLog;
         private Timer _timer;
@@ -28,7 +29,7 @@ namespace PrintQueueCleaner
 
             Text = "איפוס תור הדפסות";
             Width = 700;
-            Height = 960;
+            Height = 993;
             StartPosition = FormStartPosition.CenterScreen;
             RightToLeft = RightToLeft.Yes;
             RightToLeftLayout = true;
@@ -167,7 +168,7 @@ namespace PrintQueueCleaner
 
         private void BuildRulesGroup(Settings s)
         {
-            GroupBox g = Group("מתי למחוק עבודה", 292, 215);
+            GroupBox g = Group("מתי למחוק עבודה", 292, 248);
 
             _numNoProgress = Num(15, 30, 1, 240, s.MinutesNoProgress);
             _chkError = Chk("למחוק עבודה שנמצאת בשגיאה או שהמדפסת לא מחוברת", 15, 64, 440, s.DeleteOnError);
@@ -176,6 +177,7 @@ namespace PrintQueueCleaner
             _chkPaused = Chk("למחוק גם עבודה שמישהו השהה בכוונה (לא מומלץ)", 15, 146, 440, s.DeletePaused);
             _chkPrinted = Chk("לנקות עבודות שכבר הודפסו ונשארו בתור, לאחר", 15, 172, 330, s.DeletePrintedLeftovers);
             _numPrinted = Num(350, 170, 1, 240, s.PrintedLeftoverMinutes);
+            _chkAtPrinter = Chk("לא לגעת בעבודה שכבר התחילה לעבור למדפסת", 15, 200, 440, s.SkipJobsAtPrinter);
 
             _chkError.CheckedChanged += delegate { _numErrGrace.Enabled = _chkError.Checked; };
             _numErrGrace.Enabled = _chkError.Checked;
@@ -192,12 +194,14 @@ namespace PrintQueueCleaner
             g.Controls.Add(_chkPrinted);
             g.Controls.Add(_numPrinted);
             g.Controls.Add(Title("דקות", 425, 173, 60, 10, false));
+            g.Controls.Add(_chkAtPrinter);
+            g.Controls.Add(Hint("כשהמתג דלוק, עבודה שנתוניה כבר זורמים למכונה לא תימחק — גם אם נתקעה.", 35, 224, 590));
             Controls.Add(g);
         }
 
         private void BuildHardGroup(Settings s)
         {
-            GroupBox g = Group("עבודה שמסרבת להימחק", 513, 100);
+            GroupBox g = Group("עבודה שמסרבת להימחק", 546, 100);
 
             _chkSpooler = Chk("לאפס את שירות ההדפסה של Windows אחרי", 15, 30, 300, s.SpoolerResetEnabled);
             _numSpooler = Num(320, 28, 1, 20, s.SpoolerResetAfterAttempts);
@@ -213,7 +217,7 @@ namespace PrintQueueCleaner
 
         private void BuildStateGroup(Settings s)
         {
-            GroupBox g = Group("מצב המערכת", 620, 105);
+            GroupBox g = Group("מצב המערכת", 653, 105);
 
             _chkEnabled = Chk("המערכת פעילה", 15, 28, 180, s.Enabled);
             _chkDryRun = Chk("מצב בדיקה — רק לרשום ביומן, בלי למחוק באמת", 200, 28, 420, s.DryRun);
@@ -228,10 +232,10 @@ namespace PrintQueueCleaner
 
         private void BuildButtons()
         {
-            Button save = Btn("שמור הגדרות", 20, 735, 140);
-            Button run = Btn("בדוק עכשיו", 168, 735, 120);
-            Button install = Btn("הפעל כל 2 דקות", 296, 735, 150);
-            Button remove = Btn("בטל הרצה אוטומטית", 454, 735, 160);
+            Button save = Btn("שמור הגדרות", 20, 768, 140);
+            Button run = Btn("בדוק עכשיו", 168, 768, 120);
+            Button install = Btn("הפעל כל 2 דקות", 296, 768, 150);
+            Button remove = Btn("בטל הרצה אוטומטית", 454, 768, 160);
             save.BackColor = Color.FromArgb(222, 235, 255);
 
             save.Click += delegate { DoSave(true); };
@@ -244,8 +248,8 @@ namespace PrintQueueCleaner
 
         private void BuildLog()
         {
-            Controls.Add(Title("יומן הפעולות האחרונות:", 20, 779, 300, 10, true));
-            Button open = Btn("פתח את קובץ היומן", 500, 773, 125);
+            Controls.Add(Title("יומן הפעולות האחרונות:", 20, 812, 300, 10, true));
+            Button open = Btn("פתח את קובץ היומן", 500, 806, 125);
             open.Click += delegate
             {
                 string f = Storage.CurrentLogFile();
@@ -256,7 +260,7 @@ namespace PrintQueueCleaner
 
             _txtLog = new TextBox
             {
-                Left = 20, Top = 805, Width = 640, Height = 110,
+                Left = 20, Top = 838, Width = 640, Height = 110,
                 Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
                 RightToLeft = RightToLeft.Yes, BackColor = Color.White,
                 Font = new Font("Consolas", 9)
@@ -286,6 +290,7 @@ namespace PrintQueueCleaner
                 DeleteOnError = _chkError.Checked,
                 DeletePaperOut = _chkPaperOut.Checked,
                 DeletePaused = _chkPaused.Checked,
+                SkipJobsAtPrinter = _chkAtPrinter.Checked,
                 DeletePrintedLeftovers = _chkPrinted.Checked,
                 PrintedLeftoverMinutes = (int)_numPrinted.Value,
                 SpoolerResetEnabled = _chkSpooler.Checked,
